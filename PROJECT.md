@@ -8,10 +8,18 @@ This document describes the architecture, data flows, and nuances of this codeba
 
 A custom-built **liquid glass UI component** with a dual-mode rendering architecture:
 
-1. **Live interactive mode** — runs in the browser via Vite, responds to pointer input, fully interactive
-2. **Video render mode** — runs headlessly via Remotion, produces a deterministic frame-accurate video at 3840×536 @ 60fps
+1. **Live interactive mode** — runs in the browser via Vite (**UI Base** at `:5173`), responds to pointer input, fully interactive
+2. **Video render mode** — runs headlessly via Remotion (**Remotion Studio** at `:3000`), produces a deterministic frame-accurate video at 3840×536 @ 60fps
 
-The same `App.tsx` component powers both modes. Its behavior is switched by whether a `timelineState` prop is passed to it.
+The three apps:
+
+| App | Folder | Port | Role |
+|-----|--------|------|------|
+| **UI Base** | `ui-base/` | `:5173` | Interactive live preview — WebGL glass, orbital panels, drag/click |
+| **Remotion Studio** | `ui-base/` (same codebase) | `:3000` | Frame-accurate video render driven by `timeline-data.json` |
+| **Timeline Editor** | `timeline-editor/` | `:5174` | JSON animation editor, reads/writes `timeline-data.json` |
+
+The same `App.tsx` component powers both UI Base and Remotion. Its behavior is switched by whether a `timelineState` prop is passed to it.
 
 ---
 
@@ -23,7 +31,7 @@ The same `App.tsx` component powers both modes. Its behavior is switched by whet
 
 ```typescript
 // If timelineState is passed → Remotion mode
-// If not → Live mode
+// If not → Live mode (UI Base)
 interface AppProps {
   timelineState?: TimelineState
   overrideWidth?: number
@@ -33,13 +41,11 @@ interface AppProps {
 }
 ```
 
-### Live Mode (Vite)
+### Live Mode (UI Base)
 
 - Canvas is **responsive** — scales to fill the browser window at a fixed aspect ratio (3840/536)
-- The glass panel is **draggable** via pointer events
-- Panel position is driven by a **React Spring** (`posSpring`) with `tension: 280, friction: 24`
-- Panel expansion (click to 1.8× size) is also spring-animated
-- Mouse position is tracked and fed into the WebGL shader as `u_mouse` and `u_mouseSpring`
+- **8 orbital glass panels** rendered via `OrbitalSystem.tsx` — spring physics, drag-to-reorder, click-to-cycle S/M/L sizes
+- Panel positions are driven by orbital physics and fed directly to the WebGL multi-shape shader (`u_shapePositions[8]`, `u_shapeDims[8]`, `u_shapeCount`)
 - The settings sidebar (press `X`) exposes all visual parameters as sliders — changes take effect immediately in the live WebGL render
 - `requestAnimationFrame` loop runs the WebGL render continuously
 
@@ -84,14 +90,6 @@ Frame 242–359: Collapse spring easing, sizeMultiplier returns to 1.0
 
 The `isExpanded` boolean passed alongside controls whether the panel content shows the expanded layout.
 
-### Live Expansion
-
-When the user clicks (without dragging), the panel toggles. Sizes are:
-- Collapsed: base width/height from `LiquidGlassSettings`
-- Expanded: base × 1.8 in both dimensions
-
-Position snaps to the nearest 60px grid cell on pointer release.
-
 ---
 
 ## WebGL Rendering — What Gets Passed Where
@@ -101,12 +99,18 @@ The WebGL system runs entirely on the GPU via four GLSL passes. The CPU side (Re
 ### Uniform Categories
 
 **Geometry uniforms** (panel shape, sent to all passes):
-- `u_mouse` — panel center in canvas pixels (live: pointer-spring; render: simulated interval)
+- `u_mouse` — panel center in canvas pixels (live: orbital center; render: simulated interval)
 - `u_mouseSpring` — smoothed version with velocity for edge calculations
-- `u_shapeWidth`, `u_shapeHeight` — panel dimensions in pixels
+- `u_shapeWidth`, `u_shapeHeight` — single-panel dimensions (used when `u_shapeCount == 0`)
 - `u_shapeRadius` — corner radius as 0.0–1.0 percentage
 - `u_shapeRoundness` — superellipse exponent (2.0 = rounded rect, 7.0 = near-rectangle)
 - `u_mergeRate` — controls smooth union blending between shapes
+
+**Multi-shape orbital uniforms** (used in UI Base interactive mode):
+- `u_shapeCount` — number of active orbital panels (0 = single-shape fallback)
+- `u_shapePositions[8]` — flat vec2 array of panel centers in device pixels (WebGL Y-up)
+- `u_shapeDims[8]` — flat vec2 array of panel dimensions in CSS pixels
+- `u_radiusPct` — corner radius percentage applied to all orbital panels
 
 **Blur uniforms** (recomputed when `blurRadius` changes):
 - `u_blurRadius` — integer radius in pixels
@@ -116,7 +120,7 @@ The WebGL system runs entirely on the GPU via four GLSL passes. The CPU side (Re
 - Refraction: `u_refThickness`, `u_refFactor`, `u_refDispersion`
 - Fresnel: `u_refFresnelRange`, `u_refFresnelHardness`, `u_refFresnelFactor`
 - Glare: `u_glareRange`, `u_glareHardness`, `u_glareFactor`, `u_glareConvergence`, `u_glareOppositeFactor`, `u_glareAngle`
-- Shadow: `u_shadowExpand`, `u_shadowFactor`
+- Shadow: `u_shadowExpand`, `u_shadowFactor` (disabled in orbital mode)
 - Tint: `u_tint` (RGBA vec4)
 
 **Environment uniforms**:
@@ -126,20 +130,16 @@ The WebGL system runs entirely on the GPU via four GLSL passes. The CPU side (Re
 - `u_bgTextureRatio` — image aspect ratio for correct UV mapping
 - `u_bgTextureReady` — 0/1 flag; shader draws checkerboard until texture is loaded
 
-### Mouse Spring Velocity (Important Nuance)
-
-The `u_mouseSpring` uniform is NOT just position — it tracks velocity. A second `Controller` from React Spring (`mouseSpring`) tracks mouse position independently and computes `speed` as `(current - last) / deltaTime`. This speed value affects how the refraction edges distort as the panel moves. In Remotion mode, this is driven by the simulated interval which also computes velocity from the deterministic panel position.
-
 ---
 
 ## Data Sources at Runtime
 
-| Data | Live Source | Remotion Source |
-|------|-------------|-----------------|
+| Data | UI Base (Live) | Remotion Source |
+|------|----------------|-----------------|
 | Canvas size | `window.innerWidth` scaled to aspect ratio | `overrideWidth / overrideHeight` (3840×536) |
-| Panel position | Pointer events + React Spring | Derived from `sizeMultiplier`, centered |
-| Panel size | State toggle + React Spring | `sizeMultiplier` from `DashboardComposition.tsx` |
-| Mouse uniform | Pointer spring `x, y` | `setInterval` at 16ms using panel center |
+| Panel positions | `OrbitalSystem.tsx` physics → `orbitalPanelsRef` | Derived from `sizeMultiplier`, centered |
+| Panel size | `OrbitalSystem.tsx` (S/M/L) | `sizeMultiplier` from `DashboardComposition.tsx` |
+| Mouse uniform | Viewport center (orbital mode) | `setInterval` at 16ms using panel center |
 | Visual parameters | Settings sidebar sliders | Hardcoded defaults (`LIQUID_GLASS_DEFAULTS`) |
 | Background texture | Async load from `assets/landscape-bg.jpg` | Same — blocked with `delayRender()` until ready |
 | Blur kernel | `computeGaussianKernelByRadius(blurRadius)` — runs on CPU | Same |
@@ -160,7 +160,7 @@ The design system constants (canvas size, grid, spacing, radii) live in `src/con
 1. **fragment-bg.glsl** — draws the background (landscape texture), renders a drop shadow using SDF distance from the panel shape
 2. **fragment-bg-vblur.glsl** — vertical pass of separable Gaussian blur on the background
 3. **fragment-bg-hblur.glsl** — horizontal pass, completes the blur
-4. **fragment-main.glsl** — composites everything: samples both blurred and unblurred background, applies refraction (Snell's law), Fresnel edge effect, glare/specular highlight, chromatic aberration (R/G/B UV offsets), tint in LCH color space, and final shadow
+4. **fragment-main.glsl** — composites everything: samples both blurred and unblurred background, applies refraction (Snell's law), Fresnel edge effect, glare/specular highlight, chromatic aberration (R/G/B UV offsets), tint in LCH color space. Supports both single-shape (legacy) and multi-shape (orbital) rendering via `u_shapeCount`.
 
 The main pass has a `STEP` debug mode (0–9) that exposes intermediate render stages (SDF, normals, refraction stages). In production it runs at step 9 (full composite).
 
@@ -184,10 +184,10 @@ A standalone Vite app (`:5174`) that reads and writes `src/remotion/timeline-dat
 
 ```
 Timeline Editor (:5174)
-  GET /api/timeline   → reads  liquid-glass-studio-main/src/remotion/timeline-data.json
-  POST /api/timeline  → writes liquid-glass-studio-main/src/remotion/timeline-data.json
+  GET /api/timeline   → reads  ui-base/src/remotion/timeline-data.json
+  POST /api/timeline  → writes ui-base/src/remotion/timeline-data.json
 
-Vite dev server (:5173)
+UI Base (:5173)
   GET /timeline-registry.json  → served from public/ (component autocomplete data)
 
 Remotion Studio (:3000)
@@ -209,14 +209,14 @@ Remotion Studio (:3000)
 ./start-all.sh   # starts all 3 servers and opens Chrome tabs
 
 # Or manually:
-cd liquid-glass-studio-main && npm run dev           # :5173
-cd liquid-glass-studio-main && npm run remotion:studio # :3000
-cd timeline-editor && npm run dev                    # :5174
+cd ui-base && npm run dev              # :5173
+cd ui-base && npm run remotion:studio  # :3000
+cd timeline-editor && npm run dev      # :5174
 ```
 
 ### How to add new components to the Timeline
 
-See `COMPONENT-CONVENTIONS.md` in `liquid-glass-studio-main/`.
+See `COMPONENT-CONVENTIONS.md` in `ui-base/`.
 
 ---
 
@@ -225,6 +225,7 @@ See `COMPONENT-CONVENTIONS.md` in `liquid-glass-studio-main/`.
 - The settings sidebar UI only exists in live mode — no UI controls in Remotion output
 - Grid overlay (60px visual grid) renders in live mode only
 - Drag interaction, pointer events, keyboard shortcuts (`X` to toggle sidebar) — live only
+- Orbital panel system (`OrbitalSystem.tsx`) — live mode only; Remotion uses single-panel `timelineState`
 - `leva` package is listed as a dependency but is not used in the current codebase (likely a leftover)
 
 ---
@@ -232,11 +233,13 @@ See `COMPONENT-CONVENTIONS.md` in `liquid-glass-studio-main/`.
 ## File Structure Reference
 
 ```
-src/
+ui-base/src/
 ├── App.tsx                        Main component, dual-mode
 ├── main.tsx                       React entry
 ├── index.scss                     Global styles
 ├── App.module.scss                Scoped styles
+├── components/
+│   └── OrbitalSystem.tsx          8-panel orbital physics + glass hitboxes (live mode)
 ├── config/
 │   └── designSystem.ts            Constants: 3840×536, 60fps, grid, radii
 ├── utils/
@@ -247,18 +250,18 @@ src/
 │   ├── fragment-bg.glsl           Pass 1: background + shadow
 │   ├── fragment-bg-vblur.glsl     Pass 2: vertical blur
 │   ├── fragment-bg-hblur.glsl     Pass 3: horizontal blur
-│   └── fragment-main.glsl         Pass 4: glass composite
+│   └── fragment-main.glsl         Pass 4: glass composite (single + multi-shape)
 ├── remotion/
 │   ├── index.ts                   Remotion registration
 │   ├── Root.tsx                   Composition definition
 │   ├── DashboardComposition.tsx   Animation timeline
+│   ├── timeline-data.json         Source of truth for all animation events
 │   └── timeline.ts                TimelineState type
 └── assets/
     └── landscape-bg.jpg           Background texture
 
 remotion.config.ts                 ANGLE backend, webpack GLSL/SCSS
 vite.config.ts                     Dev server config
-src/config/designSystem.ts         Shared constants
 ```
 
 ---
@@ -272,3 +275,4 @@ src/config/designSystem.ts         Shared constants
 5. **Blur kernel is CPU-side** — the Gaussian weights are computed in TypeScript (`computeGaussianKernelByRadius`) and uploaded as a uniform array. Changing `blurRadius` triggers a full kernel recompute.
 6. **The `out/` directory** contains rendered video output — it is gitignored and should not be committed.
 7. **`leva` is installed but unused** — do not add it to the UI without discussing first.
+8. **Orbital mode vs single-panel mode** — in live mode `u_shapeCount > 0` activates multi-shape shader path. In Remotion mode `u_shapeCount = 0` and the old single-shape path is used.

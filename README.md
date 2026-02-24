@@ -8,7 +8,7 @@ A WebGL2-based liquid glass UI component system with a JSON-driven animation tim
 
 | App | Port | Purpose |
 |-----|------|---------|
-| **UI Studio** (Vite) | `:5173` | Interactive live preview — drag, click, tweak visual params |
+| **UI Base** (Vite) | `:5173` | Interactive live preview — drag, click, tweak visual params |
 | **Remotion Studio** | `:3000` | Frame-accurate animation playback and video render |
 | **Timeline Editor** | `:5174` | Spreadsheet UI for editing animation events in `timeline-data.json` |
 
@@ -32,8 +32,8 @@ Starts all three apps and opens them in Chrome. To stop everything:
 ### Manual startup
 
 ```bash
-# UI Studio — interactive preview
-cd liquid-glass-studio-main
+# UI Base — interactive preview
+cd ui-base
 npm install
 npm run dev
 
@@ -50,7 +50,7 @@ npm run dev
 
 ## Timeline Editor
 
-The Timeline Editor at `:5174` is the main tool for authoring animations. It reads and writes `liquid-glass-studio-main/src/remotion/timeline-data.json` directly — no code changes needed to update animation timing.
+The Timeline Editor at `:5174` is the main tool for authoring animations. It reads and writes `ui-base/src/remotion/timeline-data.json` directly — no code changes needed to update animation timing.
 
 ### What it does
 
@@ -82,14 +82,14 @@ Each event triggers a spring animation at its frame. Expand and Collapse events 
 
 ### Adding new components
 
-See `liquid-glass-studio-main/COMPONENT-CONVENTIONS.md`.
+See `ui-base/COMPONENT-CONVENTIONS.md`.
 
 ---
 
 ## Rendering to Video
 
 ```bash
-cd liquid-glass-studio-main
+cd ui-base
 npm run remotion:render
 ```
 
@@ -117,7 +117,7 @@ Renders `Dashboard` composition to `~/Desktop/dashboard.mp4`.
 
 ```
 Liquid Glass Test/
-├── liquid-glass-studio-main/     UI Studio + Remotion (:5173, :3000)
+├── ui-base/                      UI Base (Vite :5173) + Remotion (:3000)
 │   ├── public/
 │   │   └── timeline-registry.json      component/action definitions for autocomplete
 │   ├── src/
@@ -156,7 +156,7 @@ Pass 4: fragment-main.glsl     → glass composite (refraction, Fresnel, glare, 
 
 ---
 
-## npm Scripts (liquid-glass-studio-main)
+## npm Scripts (ui-base)
 
 ```bash
 npm run dev              # Vite dev server :5173
