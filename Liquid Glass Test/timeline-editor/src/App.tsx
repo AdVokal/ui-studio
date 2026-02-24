@@ -18,6 +18,7 @@ export default function App() {
   const [registry, setRegistry] = useState<ComponentRegistry | null>(null);
   const [fps, setFps] = useState(60);
   const [durationFrames, setDurationFrames] = useState(360);
+  const [canvas, setCanvas] = useState<{ width: number; height: number }>({ width: 3840, height: 536 });
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
   const rowsRef = useRef(rows);
@@ -38,6 +39,7 @@ export default function App() {
       .then((data: TimelineData) => {
         setFps(data.fps);
         setDurationFrames(data.durationFrames);
+        if (data.canvas) setCanvas(data.canvas);
         setRows([...data.events.map(e => ({
           id: e.id,
           frame: e.frame,
@@ -82,6 +84,7 @@ export default function App() {
       version: 1,
       fps,
       durationFrames,
+      canvas,
       events: rowsRef.current.map(r => ({
         id: r.id,
         frame: r.frame,
@@ -101,7 +104,7 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
-  }, [fps, durationFrames]);
+  }, [fps, durationFrames, canvas]);
 
   const addRow = useCallback(() => {
     const newRow: TimelineRow = {
@@ -170,6 +173,7 @@ export default function App() {
         selectedRowId={selectedRowId}
         onRowSelect={setSelectedRowId}
         durationFrames={durationFrames}
+        canvas={canvas}
       />
     </div>
   );

@@ -327,7 +327,7 @@ function App({ timelineState, overrideWidth, overrideHeight, onReady, onFrameRea
       const { panelPos, panelSize } = stateRef.current;
       const centerX = (panelPos.x + panelSize.width / 2) * cInfo.dpr;
       const centerY = (cInfo.height - panelPos.y - panelSize.height / 2) * cInfo.dpr;
-      stateRef.current.mouseSpring.start({ x: centerX, y: centerY });
+      stateRef.current.mouseSpring.start({ x: centerX, y: centerY, immediate: timelineModeRef.current });
     }, 16);
     return () => clearInterval(interval);
   }, [posSpring, sizeSpring, timelineState]);

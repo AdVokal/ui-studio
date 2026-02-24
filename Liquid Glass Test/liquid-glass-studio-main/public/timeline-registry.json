@@ -4,14 +4,15 @@
     {
       "id": "GlassPanel",
       "displayName": "Glass Panel",
+      "defaultSize": { "width": 259, "height": 124 },
       "actions": [
         { "id": "Expand",   "label": "Expand",   "params": [] },
         { "id": "Collapse", "label": "Collapse",  "params": [] },
         {
           "id": "SetPosition", "label": "Set Position",
           "params": [
-            { "id": "x", "label": "X", "type": "number", "default": 0, "min": 0, "max": 3840 },
-            { "id": "y", "label": "Y", "type": "number", "default": 0, "min": 0, "max": 536 }
+            { "id": "x", "label": "X", "type": "number", "default": 1791, "min": 0, "max": 3840 },
+            { "id": "y", "label": "Y", "type": "number", "default": 206, "min": 0, "max": 536 }
           ]
         },
         {

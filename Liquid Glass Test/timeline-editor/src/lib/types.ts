@@ -18,6 +18,7 @@ export interface TimelineData {
   version: number;
   fps: number;
   durationFrames: number;
+  canvas?: { width: number; height: number };
   events: Array<{
     id: string;
     frame: number;
@@ -46,6 +47,7 @@ export interface ActionDef {
 export interface ComponentMeta {
   id: string;
   displayName: string;
+  defaultSize?: { width: number; height: number };
   actions: ActionDef[];
 }
 

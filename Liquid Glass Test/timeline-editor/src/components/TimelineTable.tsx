@@ -17,12 +17,13 @@ interface TimelineTableProps {
   selectedRowId: string | null;
   onRowSelect: (id: string | null) => void;
   durationFrames: number;
+  canvas: { width: number; height: number };
 }
 
 interface ContextMenu { x: number; y: number; rowIndex: number }
 interface AutocompleteState { rowId: string; query: string; open: boolean }
 
-export default function TimelineTable({ rows, fps, registry, onChange, selectedRowId, onRowSelect, durationFrames }: TimelineTableProps) {
+export default function TimelineTable({ rows, fps, registry, onChange, selectedRowId, onRowSelect, durationFrames, canvas }: TimelineTableProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [autocomplete, setAutocomplete] = useState<AutocompleteState | null>(null);
   const dragSourceRef = useRef<number | null>(null);
@@ -187,25 +188,63 @@ export default function TimelineTable({ rows, fps, registry, onChange, selectedR
                 </td>
 
                 <td style={CELL}>
-                  {actionDef && actionDef.params.length > 0 ? (
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      {actionDef.params.map(p => (
-                        <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-secondary)' }}>
-                          {p.label}:
-                          <input
-                            type={p.type === 'number' ? 'number' : 'text'}
-                            value={String(row.params[p.id] ?? p.default)}
-                            min={p.min} max={p.max}
-                            onChange={e => {
-                              const val: number | string = p.type === 'number' ? Number(e.target.value) : e.target.value;
-                              updateRow(row.id, { params: { ...row.params, [p.id]: val } });
-                            }}
-                            style={{ width: p.type === 'number' ? '60px' : '80px' }}
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
+                  {actionDef && actionDef.params.length > 0 ? (() => {
+                    const hasX = actionDef.params.some(p => p.id === 'x');
+                    const hasY = actionDef.params.some(p => p.id === 'y');
+                    const isPositionAction = hasX && hasY;
+                    const compMeta2 = getComponentMeta(row.componentId);
+                    const elemW = compMeta2?.defaultSize?.width ?? 0;
+                    const elemH = compMeta2?.defaultSize?.height ?? 0;
+                    const cx = Math.round((canvas.width - elemW) / 2);
+                    const cy = Math.round((canvas.height - elemH) / 2);
+
+                    const PRESET_BTN: React.CSSProperties = {
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-bg)',
+                      color: 'var(--color-text-secondary)',
+                      fontSize: '10px',
+                      padding: '1px 5px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      lineHeight: '18px',
+                    };
+
+                    return (
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {actionDef.params.map(p => (
+                          <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-secondary)' }}>
+                            {p.label}:
+                            <input
+                              type={p.type === 'number' ? 'number' : 'text'}
+                              value={String(row.params[p.id] ?? p.default)}
+                              min={p.min} max={p.max}
+                              onChange={e => {
+                                const val: number | string = p.type === 'number' ? Number(e.target.value) : e.target.value;
+                                updateRow(row.id, { params: { ...row.params, [p.id]: val } });
+                              }}
+                              style={{ width: p.type === 'number' ? '60px' : '80px' }}
+                            />
+                          </label>
+                        ))}
+                        {isPositionAction && (
+                          <div style={{ display: 'flex', gap: '3px', marginLeft: '2px' }}>
+                            <button style={PRESET_BTN} title="Center X and Y"
+                              onMouseDown={e => { e.preventDefault(); updateRow(row.id, { params: { ...row.params, x: cx, y: cy } }); }}>
+                              ⊕
+                            </button>
+                            <button style={PRESET_BTN} title={`Center X (${cx})`}
+                              onMouseDown={e => { e.preventDefault(); updateRow(row.id, { params: { ...row.params, x: cx } }); }}>
+                              ↔
+                            </button>
+                            <button style={PRESET_BTN} title={`Center Y (${cy})`}
+                              onMouseDown={e => { e.preventDefault(); updateRow(row.id, { params: { ...row.params, y: cy } }); }}>
+                              ↕
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })() : (
                     <span style={{ color: 'var(--color-text-secondary)' }}>—</span>
                   )}
                 </td>
