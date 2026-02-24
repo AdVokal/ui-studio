@@ -6,7 +6,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const TIMELINE_PATH = resolve(__dirname, '../liquid-glass-studio-main/src/remotion/timeline-data.json');
+const TIMELINE_PATH = resolve(__dirname, '../ui-base/src/remotion/timeline-data.json');
 
 function timelineApiPlugin(): Plugin {
   return {

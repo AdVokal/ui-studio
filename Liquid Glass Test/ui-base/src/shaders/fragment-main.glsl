@@ -36,6 +36,11 @@ uniform float u_glareAngle;
 uniform int u_blurEdge;
 uniform int u_showShape1;
 
+uniform int u_shapeCount;
+uniform vec2 u_shapePositions[8];
+uniform vec2 u_shapeDims[8];
+uniform float u_radiusPct;
+
 uniform int STEP;
 
 out vec4 fragColor;
@@ -112,19 +117,37 @@ float smin(float a, float b, float k) {
 
 float mainSDF(vec2 p1, vec2 p2, vec2 p) {
   vec2 p1n = p1 + p / u_resolution.y;
-  vec2 p2n = p2 + p / u_resolution.y;
+
+  float d2;
+  if (u_shapeCount > 0) {
+    d2 = 1e9;
+    for (int i = 0; i < 8; i++) {
+      if (i >= u_shapeCount) break;
+      vec2 pn = (p - u_shapePositions[i]) / u_resolution.y;
+      float shapeR = min(u_shapeDims[i].x, u_shapeDims[i].y) * 0.5 * u_radiusPct;
+      float di = roundedRectSDF(
+        pn,
+        vec2(0.0),
+        u_shapeDims[i].x / u_resolution.y,
+        u_shapeDims[i].y / u_resolution.y,
+        shapeR / u_resolution.y,
+        u_shapeRoundness
+      );
+      d2 = min(d2, di);
+    }
+  } else {
+    vec2 p2n = p2 + p / u_resolution.y;
+    d2 = roundedRectSDF(
+      p2n,
+      vec2(0.0),
+      u_shapeWidth / u_resolution.y,
+      u_shapeHeight / u_resolution.y,
+      u_shapeRadius / u_resolution.y,
+      u_shapeRoundness
+    );
+  }
 
   float d1 = u_showShape1 == 1 ? sdCircle(p1n, 100.0 * u_dpr / u_resolution.y) : 1.0;
-  // float d2 = sdSuperellipse(p2, 200.0 / u_resolution.y, 4.0).x;
-  float d2 = roundedRectSDF(
-    p2n,
-    vec2(0.0),
-    u_shapeWidth / u_resolution.y,
-    u_shapeHeight / u_resolution.y,
-    u_shapeRadius / u_resolution.y,
-    u_shapeRoundness
-  );
-
   return smin(d1, d2, u_mergeRate);
 }
 

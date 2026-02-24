@@ -41,7 +41,7 @@ export default function Toolbar({
       flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <span style={{ fontWeight: 600, letterSpacing: '0.08em' }}>UI STUDIO — TIMELINE</span>
+        <span style={{ fontWeight: 600, letterSpacing: '0.08em' }}>UI BASE — TIMELINE</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-secondary)' }}>
           <input
             type="number"

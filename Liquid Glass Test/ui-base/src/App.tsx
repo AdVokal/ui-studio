@@ -12,6 +12,7 @@ import FragmentBgVblurShader from './shaders/fragment-bg-vblur.glsl?raw';
 import FragmentBgHblurShader from './shaders/fragment-bg-hblur.glsl?raw';
 import FragmentMainShader from './shaders/fragment-main.glsl?raw';
 import { Controller } from '@react-spring/web';
+import OrbitalSystem, { type OrbitalPanelRenderData } from './components/OrbitalSystem';
 
 import { computeGaussianKernelByRadius } from './utils';
 import landscapeBg from '@/assets/landscape-bg.jpg';
@@ -96,6 +97,7 @@ function App({ timelineState, overrideWidth, overrideHeight, onReady, onFrameRea
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MultiPassRenderer | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
+  const orbitalPanelsRef = useRef<OrbitalPanelRenderData[]>([]);
   const timelineModeRef = useRef(!!timelineState);
   timelineModeRef.current = !!timelineState;
   const onReadyRef = useRef(onReady);
@@ -352,9 +354,9 @@ function App({ timelineState, overrideWidth, overrideHeight, onReady, onFrameRea
 
     const doRender = () => {
       const cInfo = stateRef.current.canvasInfo;
-      const pPos = stateRef.current.panelPos;
-      const pSize = stateRef.current.panelSize;
       const s = stateRef.current.settings;
+      const orbs = orbitalPanelsRef.current;
+      const isOrbital = orbs.length > 0;
 
       gl.viewport(0, 0, Math.round(cInfo.width * cInfo.dpr), Math.round(cInfo.height * cInfo.dpr));
       renderer.resize(cInfo.width * cInfo.dpr, cInfo.height * cInfo.dpr);
@@ -362,28 +364,55 @@ function App({ timelineState, overrideWidth, overrideHeight, onReady, onFrameRea
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-      const centerX = (pPos.x + pSize.width / 2) * cInfo.dpr;
-      const centerY = (cInfo.height - pPos.y - pSize.height / 2) * cInfo.dpr;
+      let mouseX: number, mouseY: number, shapeW: number, shapeH: number, shapeR: number;
 
-      const springSizeFactor = 8;
-      const sizeX = pSize.width + Math.abs(stateRef.current.mouseSpringSpeed.x) * pSize.width * springSizeFactor / 100;
-      const sizeY = pSize.height + Math.abs(stateRef.current.mouseSpringSpeed.y) * pSize.height * springSizeFactor / 100;
+      if (isOrbital) {
+        mouseX = (cInfo.width * cInfo.dpr) / 2;
+        mouseY = (cInfo.height * cInfo.dpr) / 2;
+        shapeW = s.width;
+        shapeH = s.height;
+        shapeR = (Math.min(s.width, s.height) / 2) * (s.radius / 100);
+      } else {
+        const pPos = stateRef.current.panelPos;
+        const pSize = stateRef.current.panelSize;
+        mouseX = (pPos.x + pSize.width / 2) * cInfo.dpr;
+        mouseY = (cInfo.height - pPos.y - pSize.height / 2) * cInfo.dpr;
+        const springSizeFactor = 8;
+        shapeW = pSize.width + Math.abs(stateRef.current.mouseSpringSpeed.x) * pSize.width * springSizeFactor / 100;
+        shapeH = pSize.height + Math.abs(stateRef.current.mouseSpringSpeed.y) * pSize.height * springSizeFactor / 100;
+        shapeR = (Math.min(shapeW, shapeH) / 2) * (s.radius / 100);
+      }
 
-      renderer.setUniforms({
+      const globalUniforms: Record<string, unknown> = {
         u_resolution: [cInfo.width * cInfo.dpr, cInfo.height * cInfo.dpr],
         u_dpr: cInfo.dpr,
         u_blurWeights: stateRef.current.blurWeights,
         u_blurRadius: s.blurRadius,
-        u_mouse: [centerX, centerY],
-        u_mouseSpring: [centerX, centerY],
-        u_shapeWidth: sizeX,
-        u_shapeHeight: sizeY,
-        u_shapeRadius: (Math.min(sizeX, sizeY) / 2) * (s.radius / 100),
+        u_mouse: [mouseX, mouseY],
+        u_mouseSpring: [mouseX, mouseY],
+        u_shapeWidth: shapeW,
+        u_shapeHeight: shapeH,
+        u_shapeRadius: shapeR,
         u_shapeRoundness: s.roundness,
         u_mergeRate: 0.03,
         u_glareAngle: (s.glareAngle * Math.PI) / 180,
         u_showShape1: 0,
-      });
+        u_shapeCount: isOrbital ? orbs.length : 0,
+        u_radiusPct: s.radius / 100,
+      };
+
+      if (isOrbital) {
+        const positions: number[] = [];
+        const dims: number[] = [];
+        for (const orb of orbs) {
+          positions.push(orb.cx * cInfo.dpr, (cInfo.height - orb.cy) * cInfo.dpr);
+          dims.push(orb.w, orb.h);
+        }
+        globalUniforms.u_shapePositions = positions;
+        globalUniforms.u_shapeDims = dims;
+      }
+
+      renderer.setUniforms(globalUniforms);
 
       renderer.render({
         bgPass: {
@@ -392,8 +421,8 @@ function App({ timelineState, overrideWidth, overrideHeight, onReady, onFrameRea
           u_bgTextureRatio: stateRef.current.bgTexture ? stateRef.current.bgTextureRatio : undefined,
           u_bgTextureReady: stateRef.current.bgTextureReady ? 1 : 0,
           u_shadowExpand: s.shadowExpand,
-          u_shadowFactor: s.shadowFactor / 100,
-          u_shadowPosition: [0, 12],
+          u_shadowFactor: isOrbital ? 0 : s.shadowFactor / 100,
+          u_shadowPosition: isOrbital ? [0, 0] : [0, 12],
         },
         mainPass: {
           u_tint: [s.tintR / 255, s.tintG / 255, s.tintB / 255, s.tintA / 100],
@@ -486,7 +515,15 @@ function App({ timelineState, overrideWidth, overrideHeight, onReady, onFrameRea
           style={{ width: viewportSize.width, height: viewportSize.height }}
         />
 
-        {timelineState ? (
+        {!timelineState && (
+          <OrbitalSystem
+            viewportWidth={viewportSize.width}
+            viewportHeight={viewportSize.height}
+            orbitalPanelsRef={orbitalPanelsRef}
+          />
+        )}
+
+        {timelineState && (
           <div
             className={styles.panelOverlay}
             style={{ left: centeredX, top: centeredY, width: timelinePanelWidth, height: timelinePanelHeight }}
@@ -496,19 +533,6 @@ function App({ timelineState, overrideWidth, overrideHeight, onReady, onFrameRea
               <div className={styles.panelHint}>Drag to move • Snaps to grid</div>
             </div>
           </div>
-        ) : (
-          <animated.div
-            className={styles.panelOverlay}
-            style={{ left: posSpring.x, top: posSpring.y, width: sizeSpring.width, height: sizeSpring.height }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-          >
-            <div className={styles.panelContent}>
-              <div className={styles.panelLabel}>{effectiveIsExpanded ? 'Click to Shrink' : 'Click to Expand'}</div>
-              <div className={styles.panelHint}>Drag to move • Snaps to grid</div>
-            </div>
-          </animated.div>
         )}
 
         <div className={styles.info}>

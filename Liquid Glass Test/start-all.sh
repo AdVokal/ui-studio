@@ -1,7 +1,7 @@
 #!/bin/bash
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PIDFILE="/tmp/dashboard-studio.pids"
-MAIN="$ROOT/liquid-glass-studio-main"
+MAIN="$ROOT/ui-base"
 EDITOR="$ROOT/timeline-editor"
 
 [ -f "$PIDFILE" ] && kill $(cat "$PIDFILE") 2>/dev/null && rm "$PIDFILE"

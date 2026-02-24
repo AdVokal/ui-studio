@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "fps": 60,
+  "durationFrames": 360,
+  "canvas": {
+    "width": 3840,
+    "height": 536
+  },
+  "events": [
+    {
+      "id": "evt-7ixb0bz",
+      "frame": 40,
+      "componentId": "GlassPanel",
+      "action": "Expand",
+      "params": {}
+    },
+    {
+      "id": "evt-4mn63mh",
+      "frame": 40,
+      "componentId": "GlassPanel",
+      "action": "SetPosition",
+      "params": {
+        "y": 206,
+        "x": 1791
+      }
+    },
+    {
+      "id": "evt-002",
+      "frame": 86,
+      "componentId": "GlassPanel",
+      "action": "SetPosition",
+      "params": {
+        "x": 1892,
+        "y": 245
+      },
+      "spring": {
+        "stiffness": 280,
+        "damping": 24,
+        "mass": 1
+      }
+    },
+    {
+      "id": "evt-m1x8ltr",
+      "frame": 117,
+      "componentId": "GlassPanel",
+      "action": "Collapse",
+      "params": {}
+    },
+    {
+      "id": "evt-2o6nihb",
+      "frame": 147,
+      "componentId": "GlassPanel",
+      "action": "Collapse",
+      "params": {}
+    },
+    {
+      "id": "evt-gukjxlm",
+      "frame": 180,
+      "componentId": "GlassPanel",
+      "action": "SetPosition",
+      "params": {
+        "x": 1791,
+        "y": 206
+      }
+    }
+  ]
+}
